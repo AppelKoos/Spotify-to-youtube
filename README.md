@@ -1,2 +1,2 @@
-# Spotity-to-youtube
+# Spotify-to-youtube
 Moves spotify playlists to youtube
