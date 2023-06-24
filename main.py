@@ -33,7 +33,10 @@ def get_spotify_playlist(playlist_id: str, token: str):
     :param token: spotify auth token
     :return: list with spotify playlist name and tracks
     """
-    __result = get(f"https://api.spotify.com/v1/playlists/{playlist_id}", headers=get_spotify_auth_header(token))
+
+    __fields_url = 'fields=name%2Ctracks.items%28track.artists%28name%29%2C+track.name%29'
+    __result = get(f"https://api.spotify.com/v1/playlists/{playlist_id}?{__fields_url}",
+                   headers=get_spotify_auth_header(token))
     __json_result = json.loads(__result.content)
 
     __playlist = [__json_result['name']]
