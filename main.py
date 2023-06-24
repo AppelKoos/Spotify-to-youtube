@@ -63,9 +63,28 @@ def get_spotify_playlist(playlist_id: str, token: str):
     return __playlist
 
 
+def create_yt_playlist(spotify_playlist: list):
+    ytmusic = YTMusic(os.getenv('OAUTH_FILE'))
+
+    video_ids = []
+    for _track in spotify_playlist[1:]:
+        yt_track = ytmusic.search(_track, filter='songs', limit=1)
+        print(yt_track)
+        for _ in yt_track:
+            try:
+                print(_['videoId'])
+                video_ids.append(_['videoId'])
+                break
+            except KeyError as e:
+                print('----Key error----')
+                pass
+
+    print(video_ids)
+    ytmusic.create_playlist(title=spotify_playlist[0], description='', privacy_status='PRIVATE', video_ids=video_ids)
+
+
 def main():
     load_dotenv()
-    # ytmusic = YTMusic(os.getenv('OAUTH_FILE'))
 
     client_id = os.getenv('CLIENT_ID')
     client_secret = os.getenv('CLIENT_SECRET')
@@ -81,6 +100,8 @@ def main():
     print("##### Playlist tracks #####")
     for _ in playlist[1:]:
         print(_)
+
+    create_yt_playlist(playlist)
 
 
 if __name__ == "__main__":
