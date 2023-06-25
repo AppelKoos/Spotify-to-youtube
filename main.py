@@ -22,7 +22,7 @@ def get_spotify_token(client_id, client_secret):
 
     __data = {"grant_type": "client_credentials"}
     with open('run_log.txt', 'a') as log:
-        log.write('######################################################')
+        log.write('######################################################\n')
         log.write(f'{datetime.now()} #### Fetching access token...\n')
 
         try:
@@ -46,52 +46,71 @@ def get_spotify_playlist(playlist_id: str, token: str):
     :return: list with spotify playlist name and tracks
     """
 
-    with open('run_log.txt', 'a') as log:
-        log.write('######################################################')
-        log.write(f'{datetime.now()} #### Fetching spotify playlist...\n')
+    def build_artist_names(track_artists):
+        _out = ''
+        if len(track_artists) == 1:
+            _out = track_artists[0]['name']
+        else:
+            _list_artists = []
+            for _a in track_artists:
+                _list_artists.append(_a['name'])
+            _artisti = iter(_list_artists)
+            _artist = str(next(_artisti))
+            for _a in _artisti:
+                _artist += ', ' + _a
+            _out += _artist
 
-        __fields_url = 'fields=name%2Ctracks.items%28track.artists%28name%29%2C+track.name%29'
+        return _out
+
+    def get_playlist_name():
+        __result = get(f"https://api.spotify.com/v1/playlists/{playlist_id}?fields=name",
+                       headers=get_spotify_auth_header(token))
+        _ = json.loads(__result.content)
+        return [_['name']]
+
+    def request_playlist(fields_url):
+        __result = get(f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks?{fields_url}",
+                       headers=get_spotify_auth_header(token))
+        return json.loads(__result.content)
+
+    def build_playlist(playlist: list, playlist_obj):
+        for _trackitm in playlist_obj['items']:
+            playlist.append(f"{build_artist_names(_trackitm['track']['artists'])} - {_trackitm['track']['name']}")
+        return playlist
+
+    with open('run_log.txt', 'a') as log:
+        log.write('######################################################\n')
+        log.write(f'{datetime.now()} #### Fetching spotify playlist object...\n')
+
         try:
-            __result = get(f"https://api.spotify.com/v1/playlists/{playlist_id}?{__fields_url}",
-                           headers=get_spotify_auth_header(token))
-            __json_result = json.loads(__result.content)
-            __playlist = [__json_result['name']]
+            __fields_url = 'fields=name%2Citems%28track.artists%28name%29%2Ctrack.name%29&limit=100'
+            __json_result = request_playlist(__fields_url)
+            __playlist = get_playlist_name()
         except Exception as e:
             log.write(f'{datetime.now()} #### Error with fetching results: {e}\n')
-            log.write(f'{datetime.now()} #### {__result}')
             raise e
 
-        def build_artist_names(track_artists):
-            _out = ''
-            if len(track_artists) == 1:
-                _out = track_artists[0]['name']
-            else:
-                _list_artists = []
-                for _a in track_artists:
-                    _list_artists.append(_a['name'])
-                _artisti = iter(_list_artists)
-                _artist = str(next(_artisti))
-                for _a in _artisti:
-                    _artist += ', ' + _a
-                _out += _artist
-
-            return _out
-
-        log.write(f'{datetime.now()} #### Playlist data fetched\n')
+        log.write(f'{datetime.now()} #### Playlist object fetched\n')
         log.write(f'{datetime.now()} #### Fetching Playlist tracks...\n')
         try:
-            for _trackitm in __json_result['tracks']['items']:
-                __playlist.append(f"{build_artist_names(_trackitm['track']['artists'])} - {_trackitm['track']['name']}")
+            build_playlist(__playlist, __json_result)
         except Exception as e:
             log.write(f'{datetime.now()} #### Error with fetching track: {e}\n')
+        finally:
+            if len(__playlist) >= 101:  # 100 + 1 for inserting name into list
+                __fields_url += '&offset=100'
+                __json_result = request_playlist(__fields_url)
+                build_playlist(__playlist, __json_result)
 
         log.write(f'{datetime.now()} #### All tracks added\n')
         log.write(f'{datetime.now()} #### Spotify playlist details\n')
         log.write(f'##### Playlist name ######\n')
         log.write(f'{__playlist[0]}\n')
         log.write(f'##### Playlist tracks #####\n')
+        i = 0
         for _ in __playlist[1:]:
-            log.write(f'{_}\n')
+            i += 1
+            log.write(f'{i}\t{_}\n')
 
     return __playlist
 
@@ -100,7 +119,7 @@ def create_yt_playlist(spotify_playlist: list):
     video_ids = []
     empty_ids = []
     with open('run_log.txt', 'a') as log:
-        log.write('######################################################')
+        log.write('######################################################\n')
         log.write(f'{datetime.now()} #### Fetching YT oauth file...\n')
         try:
             ytmusic = YTMusic(os.getenv('OAUTH_FILE'))
@@ -118,9 +137,10 @@ def create_yt_playlist(spotify_playlist: list):
                 try:
                     _i = _['videoId']
                     video_ids.append(_i)
-                    log.write(f'#### {spotify_playlist[0]} #### {_track} added with {_["videoId"]}\n')
+                    log.write(f'#### {spotify_playlist[0]} #### {_track} added with {_i}\n')
                     break
                 except KeyError:
+                    print(f'--keyerror-- {_track}')
                     _i = ''
                     log.write(f'{datetime.now()} #### ----KEY ERROR: {_track}----\n')
                     log.write(f'{datetime.now()} #### Retrying with another result...\n')
@@ -164,6 +184,7 @@ def main():
                 raise Exception('Empty spotify playlist ids')
         log.write(f'{datetime.now()} #### Spotify playlist ids fetched from txt file\n')
 
+    print('Setting up account')
     with open('run_log.txt', 'a') as log:
         log.write(f'{datetime.now()} #### Fetching spotify secrets...\n')
         try:
@@ -177,6 +198,7 @@ def main():
 
     token = get_spotify_token(client_id, client_secret)
 
+    print('Running...')
     for id in playlist_ids:
         playlist = get_spotify_playlist(id, token)
         create_yt_playlist(playlist)
